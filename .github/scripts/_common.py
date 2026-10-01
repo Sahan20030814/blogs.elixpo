@@ -209,6 +209,7 @@ def resolve_org_project(owner: str, number: int) -> dict:
         visible = [
             f"#{item.get('number')} {item.get('title')}"
             for item in projects.get("nodes") or []
+            if item
         ]
         visibility = ", ".join(visible) if visible else "none"
         raise RuntimeError(
