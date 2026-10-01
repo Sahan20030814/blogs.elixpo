@@ -21,6 +21,7 @@ from _common import (
     parse_llm_json,
     ensure_label,
     add_labels,
+    resolve_org_project,
 )
 
 # ── Environment variables ──────────────────────────────────────────────────
@@ -32,7 +33,7 @@ from _common import (
 AGENT_TOKEN = os.environ["AGENT_TOKEN"]
 POLLINATIONS_KEY = os.environ.get("POLLINATIONS_KEY", "")
 ISSUE_NUMBER = os.environ["ISSUE_NUMBER"]
-ISSUE_AUTHOR = os.environ["ISSUE_AUTHOR"]
+ISSUE_AUTHOR = os.environ.get("ISSUE_AUTHOR", "")
 REPO = os.environ["REPO"]
 
 # ── Defaults ───────────────────────────────────────────────────────────────
@@ -225,15 +226,16 @@ def main() -> None:
     issue_node_id = issue_data["node_id"]
     issue_title = issue_data.get("title") or ""
     issue_body = issue_data.get("body") or ""
+    issue_author = ISSUE_AUTHOR or (issue_data.get("user") or {}).get("login", "")
     print(f"Title:  {issue_title}")
-    print(f"Author: {ISSUE_AUTHOR}")
+    print(f"Author: {issue_author}")
     print(f"Node ID: {issue_node_id}")
 
-    is_org_member = ISSUE_AUTHOR in ORG_MEMBERS
+    is_org_member = issue_author in ORG_MEMBERS
     if is_org_member:
-        print(f"Author @{ISSUE_AUTHOR} is an org member — assigning reporter")
+        print(f"Author @{issue_author} is an org member — assigning reporter")
         try:
-            assign_issue(ISSUE_NUMBER, ISSUE_AUTHOR)
+            assign_issue(ISSUE_NUMBER, issue_author)
         except Exception as exc:
             print(f"[warn] Assign failed: {exc}")
 
@@ -299,6 +301,12 @@ def main() -> None:
         category = "Support"
         project = PROJECTS["Support"]
 
+    try:
+        project = {**project, **resolve_org_project(PROJECT_OWNER, project["number"])}
+    except Exception as exc:
+        print(f"[error] Failed to resolve '{category}' project: {exc}")
+        failures.append("Project V2 lookup")
+
     # ── Step 2a: Set native GitHub Issue Type (sidebar "Type") ────────────
     type_name = CATEGORY_TO_TYPE.get(category, "Task")
     type_id = ISSUE_TYPES.get(type_name)
@@ -312,14 +320,15 @@ def main() -> None:
     else:
         print(f"[warn] No issue type ID for '{type_name}', skipping")
 
-    priority_option_id = project["priority_options"].get(priority)
+    priority_options = project.get("priority_options", {})
+    priority_option_id = priority_options.get(priority)
     if priority_option_id is None:
         print(
             f"[warn] No option ID for priority '{priority}' in project '{category}', "
             f"defaulting to {DEFAULT_PRIORITY}"
         )
         priority = DEFAULT_PRIORITY
-        priority_option_id = project["priority_options"].get(priority)
+        priority_option_id = priority_options.get(priority)
 
     # ── Step 3: Add to project ────────────────────────────────────────────
     print(f"Adding issue to '{category}' project ({project['id']})...")
