@@ -1,17 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function BlogCodeView({ blocks, markdown }) {
   const [viewMode, setViewMode] = useState('markdown');
   const [copied, setCopied] = useState(false);
+  const copiedResetRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(copiedResetRef.current), []);
 
   const content = viewMode === 'markdown' ? markdown : JSON.stringify(blocks, null, 2);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(content || '').then(() => {
+      clearTimeout(copiedResetRef.current);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copiedResetRef.current = setTimeout(() => setCopied(false), 2000);
     }).catch(() => {});
   };
 
@@ -41,6 +45,7 @@ export default function BlogCodeView({ blocks, markdown }) {
           </button>
         </div>
         <button
+          type="button"
           onClick={handleCopy}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#1D202A] rounded-lg transition-colors ${
             copied ? 'text-[#4ade80]' : 'text-[#888] hover:text-[#7ba8f0]'
