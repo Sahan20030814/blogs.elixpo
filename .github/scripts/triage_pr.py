@@ -8,7 +8,7 @@ GitHub Project V2 board with an UPPERCASE category label.
 Every PR is classified from its content. The author never overrides the
 category because an org member can open feature, bug, support, or dev work.
 
-Env vars: AGENT_TOKEN, POLLINATIONS_KEY, PR_NUMBER, PR_AUTHOR, REPO
+Env vars: AGENT_TOKEN, PROJECT_TOKEN, POLLINATIONS_KEY, PR_NUMBER, PR_AUTHOR, REPO
 """
 
 import json
@@ -32,7 +32,7 @@ from _common import (
 AGENT_TOKEN = os.environ["AGENT_TOKEN"]
 POLLINATIONS_KEY = os.environ.get("POLLINATIONS_KEY", "")
 PR_NUMBER = os.environ["PR_NUMBER"]
-PR_AUTHOR = os.environ["PR_AUTHOR"]
+PR_AUTHOR = os.environ.get("PR_AUTHOR", "")
 REPO = os.environ["REPO"]
 
 # ── Defaults ───────────────────────────────────────────────────────────────
@@ -215,8 +215,9 @@ def main() -> None:
     pr_node_id = pr_data["node_id"]
     pr_title = pr_data.get("title") or ""
     pr_body = pr_data.get("body") or ""
+    pr_author = PR_AUTHOR or (pr_data.get("user") or {}).get("login", "")
     print(f"Title:  {pr_title}")
-    print(f"Author: @{PR_AUTHOR}")
+    print(f"Author: @{pr_author}")
 
     category = DEFAULT_CATEGORY
     priority = DEFAULT_PRIORITY

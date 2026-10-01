@@ -49,6 +49,11 @@ def _repo_token() -> str:
     return os.environ.get("REPO_TOKEN", "").strip() or _agent_token()
 
 
+def _project_token() -> str:
+    """Token with organization Project V2 and issue-type access."""
+    return os.environ.get("PROJECT_TOKEN", "").strip() or _agent_token()
+
+
 def _pollinations_key() -> str:
     return os.environ.get("POLLINATIONS_KEY", "").strip()
 
@@ -157,7 +162,7 @@ def github_graphql(query: str, variables: dict | None = None) -> dict:
             data=json.dumps(payload).encode(),
             method="POST",
         )
-        req.add_header("Authorization", f"Bearer {_agent_token()}")
+        req.add_header("Authorization", f"Bearer {_project_token()}")
         req.add_header("Content-Type", "application/json")
         req.add_header("User-Agent", USER_AGENT)
         with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT) as resp:

@@ -32,7 +32,7 @@ from _common import (
 AGENT_TOKEN = os.environ["AGENT_TOKEN"]
 POLLINATIONS_KEY = os.environ.get("POLLINATIONS_KEY", "")
 ISSUE_NUMBER = os.environ["ISSUE_NUMBER"]
-ISSUE_AUTHOR = os.environ["ISSUE_AUTHOR"]
+ISSUE_AUTHOR = os.environ.get("ISSUE_AUTHOR", "")
 REPO = os.environ["REPO"]
 
 # ── Defaults ───────────────────────────────────────────────────────────────
@@ -225,15 +225,16 @@ def main() -> None:
     issue_node_id = issue_data["node_id"]
     issue_title = issue_data.get("title") or ""
     issue_body = issue_data.get("body") or ""
+    issue_author = ISSUE_AUTHOR or (issue_data.get("user") or {}).get("login", "")
     print(f"Title:  {issue_title}")
-    print(f"Author: {ISSUE_AUTHOR}")
+    print(f"Author: {issue_author}")
     print(f"Node ID: {issue_node_id}")
 
-    is_org_member = ISSUE_AUTHOR in ORG_MEMBERS
+    is_org_member = issue_author in ORG_MEMBERS
     if is_org_member:
-        print(f"Author @{ISSUE_AUTHOR} is an org member — assigning reporter")
+        print(f"Author @{issue_author} is an org member — assigning reporter")
         try:
-            assign_issue(ISSUE_NUMBER, ISSUE_AUTHOR)
+            assign_issue(ISSUE_NUMBER, issue_author)
         except Exception as exc:
             print(f"[warn] Assign failed: {exc}")
 
