@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useId, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -25,6 +25,8 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
   const [clearing, setClearing] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const ref = useRef(null);
+  const inputRef = useRef(null);
+  const listboxId = useId();
   const router = useRouter();
 
   // Keep in sync when the URL changes underneath us (back/forward on /search).
@@ -34,6 +36,25 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
     function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Global '/' shortcut focuses the search bar unless typing in an editable field.
+  useEffect(() => {
+    function handleGlobalKeyDown(e) {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+      const active = document.activeElement;
+      if (active) {
+        const tag = active.tagName?.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || active.isContentEditable) {
+          return;
+        }
+      }
+      e.preventDefault();
+      inputRef.current?.focus();
+      setOpen(true);
+    }
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
   const loadSuggestions = useCallback((prefix = '') => {
@@ -155,7 +176,7 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
       setActiveIndex(i => (i + 1) % options.length);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveIndex(i => (i - 1 + options.length) % options.length);
+      setActiveIndex(i => (i === -1 ? options.length - 1 : Math.max(-1, i - 1)));
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (activeIndex >= 0 && options[activeIndex]) {
@@ -168,6 +189,7 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
     } else if (e.key === 'Escape') {
       setOpen(false);
       setActiveIndex(-1);
+      inputRef.current?.blur();
     }
   };
 
@@ -186,10 +208,16 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
       >
         <ion-icon name="search-outline" style={{ fontSize: '16px', color: 'var(--text-faint)' }} />
         <input
+          ref={inputRef}
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={showPanel}
+          aria-controls={listboxId}
+          aria-activedescendant={activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
           placeholder="Search blogs, people, topics... or try tag:hacktoberfest"
           autoFocus={autoFocus}
           className="flex-1 bg-transparent outline-none text-[14px] min-w-0"
@@ -206,7 +234,7 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
       </div>
 
       {showPanel && (
-        <div ref={listRef} className="absolute left-0 right-0 top-full mt-2 rounded-xl shadow-xl z-50 overflow-hidden max-h-[440px] overflow-y-auto" style={{ backgroundColor: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)' }}>
+        <div id={listboxId} ref={listRef} role="listbox" className="absolute left-0 right-0 top-full mt-2 rounded-xl shadow-xl z-50 overflow-hidden max-h-[440px] overflow-y-auto" style={{ backgroundColor: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)' }}>
 
           {/* Recent searches — with per-item forget and a clear-all */}
           {!hasResults && recents.length > 0 && (
@@ -223,13 +251,17 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
                 </button>
               </div>
               {recents.map((s, i) => {
-                const active = activeIndex === recentsOffset + i;
+                const index = recentsOffset + i;
+                const active = activeIndex === index;
                 return (
                   <div
                     key={`r${i}`}
+                    id={`${listboxId}-option-${index}`}
+                    role="option"
+                    aria-selected={active}
                     data-active={active}
                     onClick={() => handleSelect('suggestion', s)}
-                    onMouseEnter={() => setActiveIndex(recentsOffset + i)}
+                    onMouseEnter={() => setActiveIndex(index)}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-lg transition-colors text-[13px] cursor-pointer group"
                     style={{
                       color: 'var(--text-secondary)',
@@ -256,13 +288,17 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
           {!hasResults && topics.length > 0 && (
             <div className="p-2 pt-0">
               {topics.map((s, i) => {
-                const active = activeIndex === topicsOffset + i;
+                const index = topicsOffset + i;
+                const active = activeIndex === index;
                 return (
                   <button
                     key={`t${i}`}
+                    id={`${listboxId}-option-${index}`}
+                    role="option"
+                    aria-selected={active}
                     data-active={active}
                     onClick={() => handleSelect('suggestion', s)}
-                    onMouseEnter={() => setActiveIndex(topicsOffset + i)}
+                    onMouseEnter={() => setActiveIndex(index)}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-lg transition-colors text-[13px]"
                     style={{
                       color: 'var(--text-secondary)',
@@ -283,13 +319,17 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
             <div>
               <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-faint)' }}>Blogs</p>
               {results.blogs.map((b, i) => {
-                const active = activeIndex === blogsOffset + i;
+                const index = blogsOffset + i;
+                const active = activeIndex === index;
                 return (
                   <button
                     key={b.slugid || b.id}
+                    id={`${listboxId}-option-${index}`}
+                    role="option"
+                    aria-selected={active}
                     data-active={active}
                     onClick={() => handleSelect('blog', b)}
-                    onMouseEnter={() => setActiveIndex(blogsOffset + i)}
+                    onMouseEnter={() => setActiveIndex(index)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors"
                     style={{ backgroundColor: active ? 'var(--bg-hover)' : 'transparent' }}
                   >
@@ -308,13 +348,17 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
             <div>
               <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-faint)' }}>People</p>
               {results.users.map((u, i) => {
-                const active = activeIndex === usersOffset + i;
+                const index = usersOffset + i;
+                const active = activeIndex === index;
                 return (
                   <button
                     key={u.id}
+                    id={`${listboxId}-option-${index}`}
+                    role="option"
+                    aria-selected={active}
                     data-active={active}
                     onClick={() => handleSelect('user', u)}
-                    onMouseEnter={() => setActiveIndex(usersOffset + i)}
+                    onMouseEnter={() => setActiveIndex(index)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors"
                     style={{ backgroundColor: active ? 'var(--bg-hover)' : 'transparent' }}
                   >
@@ -335,13 +379,17 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
             <div>
               <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-faint)' }}>Organizations</p>
               {results.orgs.map((o, i) => {
-                const active = activeIndex === orgsOffset + i;
+                const index = orgsOffset + i;
+                const active = activeIndex === index;
                 return (
                   <button
                     key={o.id}
+                    id={`${listboxId}-option-${index}`}
+                    role="option"
+                    aria-selected={active}
                     data-active={active}
                     onClick={() => handleSelect('org', o)}
-                    onMouseEnter={() => setActiveIndex(orgsOffset + i)}
+                    onMouseEnter={() => setActiveIndex(index)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors"
                     style={{ backgroundColor: active ? 'var(--bg-hover)' : 'transparent' }}
                   >
@@ -368,6 +416,9 @@ export default function SearchBar({ defaultQuery = '', autoFocus = false, compac
           <div style={{ borderTop: '1px solid var(--dropdown-border)' }}>
             {query.trim().length >= 2 && (
               <button
+                id={`${listboxId}-option-${allIndex}`}
+                role="option"
+                aria-selected={activeIndex === allIndex}
                 data-active={activeIndex === allIndex}
                 onClick={() => submitSearch()}
                 onMouseEnter={() => setActiveIndex(allIndex)}
