@@ -146,11 +146,14 @@ def github_rest(
 
 
 # ── GitHub GraphQL ────────────────────────────────────────────────────────
-def github_graphql(query: str, variables: dict | None = None) -> dict:
-    """Make a GraphQL call as @elixpoo.
+def github_graphql(
+    query: str, variables: dict | None = None, *, token: str | None = None
+) -> dict:
+    """Make a GraphQL call with the organization Project token by default.
 
     Uses the `variables` parameter so user-controlled values don't need to be
-    interpolated into the query string (safer + more robust).
+    interpolated into the query string (safer + more robust). Repository-level
+    mutations can explicitly use REPO_TOKEN instead.
     """
     payload: dict = {"query": query}
     if variables:
@@ -162,7 +165,7 @@ def github_graphql(query: str, variables: dict | None = None) -> dict:
             data=json.dumps(payload).encode(),
             method="POST",
         )
-        req.add_header("Authorization", f"Bearer {_project_token()}")
+        req.add_header("Authorization", f"Bearer {token or _project_token()}")
         req.add_header("Content-Type", "application/json")
         req.add_header("User-Agent", USER_AGENT)
         with urllib.request.urlopen(req, timeout=DEFAULT_TIMEOUT) as resp:

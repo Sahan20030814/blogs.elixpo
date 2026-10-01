@@ -28,9 +28,10 @@ from _common import (
 # Note: ISSUE_TITLE and ISSUE_BODY are intentionally NOT read from env vars.
 # The event payload is stale if issue_description.py has already rewritten
 # the body in an earlier step. We fetch them fresh from the GitHub API below.
-# AGENT_TOKEN is the organization PAT used for Project V2 and issue-type
-# GraphQL calls. Repository REST writes use REPO_TOKEN through _common.py.
+# PROJECT_TOKEN is used for Project V2 GraphQL calls through _common.py.
+# Repository REST writes and the native issue-type mutation use REPO_TOKEN.
 AGENT_TOKEN = os.environ["AGENT_TOKEN"]
+REPO_TOKEN = os.environ.get("REPO_TOKEN", "").strip() or AGENT_TOKEN
 POLLINATIONS_KEY = os.environ.get("POLLINATIONS_KEY", "")
 ISSUE_NUMBER = os.environ["ISSUE_NUMBER"]
 ISSUE_AUTHOR = os.environ.get("ISSUE_AUTHOR", "")
@@ -209,7 +210,9 @@ def set_issue_type(issue_node_id: str, issue_type_id: str) -> None:
     }
     """
     github_graphql(
-        mutation, {"issueId": issue_node_id, "issueTypeId": issue_type_id}
+        mutation,
+        {"issueId": issue_node_id, "issueTypeId": issue_type_id},
+        token=REPO_TOKEN,
     )
 
 
