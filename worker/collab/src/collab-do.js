@@ -53,6 +53,7 @@ export class CollabDurableObject {
         Y.applyUpdate(this.doc, new Uint8Array(stored));
       } catch (err) {
         console.error('Failed to load Yjs state:', err);
+        throw err;
       }
     }
 

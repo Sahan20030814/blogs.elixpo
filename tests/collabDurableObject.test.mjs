@@ -71,7 +71,14 @@ function decodeText(buffer) {
   return doc.getText('body').toString();
 }
 
-test('last socket closing after hibernation keeps the stored document', { skip }, async () => {
+function destroyRoom(t, room) {
+  t.after(() => {
+    room.awareness.destroy();
+    room.doc.destroy();
+  });
+}
+
+test('last socket closing after hibernation keeps the stored document', { skip }, async (t) => {
   const state = encodedDocWithText('hello collab');
   const storage = fakeStorage({ yjs_state: state.buffer, blog_id: 'blog-1' });
   const db = fakeDb();
@@ -79,6 +86,7 @@ test('last socket closing after hibernation keeps the stored document', { skip }
   // A fresh instance == the object waking up from hibernation. The first event
   // it sees is the close of the final client, with a reserved close code.
   const room = new CollabDurableObject(fakeCtx(storage), { DB: db });
+  destroyRoom(t, room);
   await room.webSocketClose(fakeSocket(), 1005, '');
 
   assert.equal(decodeText(storage.data.get('yjs_state')), 'hello collab');
@@ -88,7 +96,7 @@ test('last socket closing after hibernation keeps the stored document', { skip }
   assert.equal(decodeText(snapshot.params[1]), 'hello collab');
 });
 
-test('sub-page rooms keep snapshotting to subpage_collab_state after hibernation', { skip }, async () => {
+test('sub-page rooms keep snapshotting to subpage_collab_state after hibernation', { skip }, async (t) => {
   const state = encodedDocWithText('sub-page draft');
   const storage = fakeStorage({
     yjs_state: state.buffer,
@@ -98,6 +106,7 @@ test('sub-page rooms keep snapshotting to subpage_collab_state after hibernation
   const db = fakeDb();
 
   const room = new CollabDurableObject(fakeCtx(storage), { DB: db });
+  destroyRoom(t, room);
   await room.webSocketClose(fakeSocket(), 1001, 'going away');
 
   assert.equal(
@@ -110,23 +119,35 @@ test('sub-page rooms keep snapshotting to subpage_collab_state after hibernation
   assert.equal(snapshot.params[0], 'sub-9');
 });
 
-test('alarm after wake-up persists the hydrated document, not an empty one', { skip }, async () => {
+test('alarm after wake-up persists the hydrated document, not an empty one', { skip }, async (t) => {
   const state = encodedDocWithText('draft in progress');
   const storage = fakeStorage({ yjs_state: state.buffer, blog_id: 'blog-1' });
 
   const room = new CollabDurableObject(fakeCtx(storage), { DB: fakeDb() });
+  destroyRoom(t, room);
   await room.alarm();
 
   assert.equal(decodeText(storage.data.get('yjs_state')), 'draft in progress');
 });
 
-test('a failed hydrate never persists an empty document', { skip }, async () => {
+test('a failed hydrate never persists an empty document', { skip }, async (t) => {
   const storage = fakeStorage({ blog_id: 'blog-1' });
   storage.get = async () => { throw new Error('storage unavailable'); };
   const ctx = fakeCtx(storage);
   ctx.blockConcurrencyWhile = (fn) => fn();
 
   const room = new CollabDurableObject(ctx, { DB: fakeDb() });
+  destroyRoom(t, room);
   await assert.rejects(room.alarm(), /storage unavailable/);
   assert.equal(storage.data.has('yjs_state'), false);
+});
+
+test('a malformed stored update never gets replaced with an empty document', { skip }, async (t) => {
+  const malformed = new Uint8Array([255, 255, 255]).buffer;
+  const storage = fakeStorage({ yjs_state: malformed, blog_id: 'blog-1' });
+  const room = new CollabDurableObject(fakeCtx(storage), { DB: fakeDb() });
+  destroyRoom(t, room);
+
+  await assert.rejects(room.alarm());
+  assert.equal(storage.data.get('yjs_state'), malformed);
 });
