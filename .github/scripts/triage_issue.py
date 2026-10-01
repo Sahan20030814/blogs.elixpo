@@ -21,6 +21,7 @@ from _common import (
     parse_llm_json,
     ensure_label,
     add_labels,
+    resolve_org_project,
 )
 
 # ── Environment variables ──────────────────────────────────────────────────
@@ -300,6 +301,12 @@ def main() -> None:
         category = "Support"
         project = PROJECTS["Support"]
 
+    try:
+        project = {**project, **resolve_org_project(PROJECT_OWNER, project["number"])}
+    except Exception as exc:
+        print(f"[error] Failed to resolve '{category}' project: {exc}")
+        failures.append("Project V2 lookup")
+
     # ── Step 2a: Set native GitHub Issue Type (sidebar "Type") ────────────
     type_name = CATEGORY_TO_TYPE.get(category, "Task")
     type_id = ISSUE_TYPES.get(type_name)
@@ -313,14 +320,15 @@ def main() -> None:
     else:
         print(f"[warn] No issue type ID for '{type_name}', skipping")
 
-    priority_option_id = project["priority_options"].get(priority)
+    priority_options = project.get("priority_options", {})
+    priority_option_id = priority_options.get(priority)
     if priority_option_id is None:
         print(
             f"[warn] No option ID for priority '{priority}' in project '{category}', "
             f"defaulting to {DEFAULT_PRIORITY}"
         )
         priority = DEFAULT_PRIORITY
-        priority_option_id = project["priority_options"].get(priority)
+        priority_option_id = priority_options.get(priority)
 
     # ── Step 3: Add to project ────────────────────────────────────────────
     print(f"Adding issue to '{category}' project ({project['id']})...")

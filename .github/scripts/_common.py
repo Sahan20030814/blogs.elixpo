@@ -174,6 +174,49 @@ def github_graphql(query: str, variables: dict | None = None) -> dict:
     return result
 
 
+def resolve_org_project(owner: str, number: int) -> dict:
+    """Resolve a Project V2 board and its single-select fields at runtime.
+
+    Project and field node IDs can change when a board is recreated. The
+    organization login plus project number is the stable workflow input.
+    """
+    query = """
+    query($owner: String!, $number: Int!) {
+      organization(login: $owner) {
+        projectV2(number: $number) {
+          id
+          fields(first: 50) {
+            nodes {
+              ... on ProjectV2SingleSelectField {
+                id
+                name
+                options { id name }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+    result = github_graphql(query, {"owner": owner, "number": number})
+    project = ((result.get("data") or {}).get("organization") or {}).get("projectV2")
+    if not project:
+        raise RuntimeError(f"Project V2 {owner}/{number} is unavailable to PROJECT_TOKEN")
+
+    resolved = {"id": project["id"], "number": number}
+    for field in (project.get("fields") or {}).get("nodes") or []:
+        if not field or not field.get("name"):
+            continue
+        key = field["name"].strip().lower()
+        resolved[f"{key}_field_id"] = field.get("id")
+        resolved[f"{key}_options"] = {
+            option.get("name"): option.get("id")
+            for option in field.get("options") or []
+            if option.get("name") and option.get("id")
+        }
+    return resolved
+
+
 # ── LLM (Pollinations) ────────────────────────────────────────────────────
 def call_llm(
     model: str,

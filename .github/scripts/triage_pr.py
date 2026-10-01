@@ -26,6 +26,7 @@ from _common import (
     parse_llm_json,
     ensure_label,
     add_labels,
+    resolve_org_project,
 )
 
 # ── Environment ────────────────────────────────────────────────────────────
@@ -245,6 +246,11 @@ def main() -> None:
 
     # Resolve project
     project = PROJECTS.get(category) or PROJECTS[DEFAULT_CATEGORY]
+    try:
+        project = {**project, **resolve_org_project(PROJECT_OWNER, project["number"])}
+    except Exception as exc:
+        print(f"[error] Failed to resolve '{category}' project: {exc}")
+        failures.append("Project V2 lookup")
 
     # Add to project board + set Status=Todo so we don't rely on
     # github-project-automation[bot] for the initial status.
