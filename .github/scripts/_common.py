@@ -205,9 +205,10 @@ def resolve_org_project(owner: str, number: int) -> dict:
     organization = (result.get("data") or {}).get("organization") or {}
     project = organization.get("projectV2")
     if not project:
+        projects = organization.get("projectsV2") or {}
         visible = [
             f"#{item.get('number')} {item.get('title')}"
-            for item in (organization.get("projectsV2") or {}).get("nodes") or []
+            for item in projects.get("nodes") or []
         ]
         visibility = ", ".join(visible) if visible else "none"
         raise RuntimeError(
