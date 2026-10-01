@@ -10,14 +10,15 @@ export default function ScrollToTopButton() {
       setIsVisible(window.scrollY > 300);
     };
 
-    window.addEventListener('scroll', toggleVisibility);
+    toggleVisibility();
+    window.addEventListener('scroll', toggleVisibility, { passive: true });
     return () => window.removeEventListener('scroll', toggleVisibility);
   }, []);
 
   const scrollToTop = () => {
     window.scrollTo({
       top: 0,
-      behavior: 'smooth',
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
     });
   };
 
@@ -25,6 +26,7 @@ export default function ScrollToTopButton() {
 
   return (
     <button
+      type="button"
       onClick={scrollToTop}
       aria-label="Scroll to top"
       className="fixed bottom-6 right-6 md:bottom-10 md:right-10 p-3 rounded-full shadow-xl transition-all duration-300 z-50 hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-[#7ba8f0]"
