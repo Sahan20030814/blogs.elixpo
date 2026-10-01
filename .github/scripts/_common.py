@@ -183,6 +183,9 @@ def resolve_org_project(owner: str, number: int) -> dict:
     query = """
     query($owner: String!, $number: Int!) {
       organization(login: $owner) {
+        projectsV2(first: 50) {
+          nodes { id number title }
+        }
         projectV2(number: $number) {
           id
           fields(first: 50) {
@@ -199,9 +202,18 @@ def resolve_org_project(owner: str, number: int) -> dict:
     }
     """
     result = github_graphql(query, {"owner": owner, "number": number})
-    project = ((result.get("data") or {}).get("organization") or {}).get("projectV2")
+    organization = (result.get("data") or {}).get("organization") or {}
+    project = organization.get("projectV2")
     if not project:
-        raise RuntimeError(f"Project V2 {owner}/{number} is unavailable to PROJECT_TOKEN")
+        visible = [
+            f"#{item.get('number')} {item.get('title')}"
+            for item in (organization.get("projectsV2") or {}).get("nodes") or []
+        ]
+        visibility = ", ".join(visible) if visible else "none"
+        raise RuntimeError(
+            f"Project V2 {owner}/{number} is unavailable to PROJECT_TOKEN; "
+            f"visible organization projects: {visibility}"
+        )
 
     resolved = {"id": project["id"], "number": number}
     for field in (project.get("fields") or {}).get("nodes") or []:
